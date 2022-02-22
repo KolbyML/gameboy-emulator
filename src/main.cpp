@@ -5,6 +5,7 @@
 #include <fstream>
 #include "utils.h"
 #include "main.h"
+#include "cpu.h"
 
 bool DEBUG = false;
 
@@ -34,11 +35,24 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // 4Kb of memory
+    std::vector<std::uint8_t> memory(4096, 0);
+    std::fill(memory.begin(), memory.end(), 0);
+
     std::ifstream input(file_dir, std::ios::binary);
     // copies all data into buffer
     std::vector<std::uint8_t> buffer(std::istreambuf_iterator<char>(input), {});
 
     init_SDL2();
+
+    Registers registers = {};
+    Flag_register flag_register = {};
+
+    while (true) {
+        if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
+            break;
+        cpu_cycle(memory, registers, flag_register);
+    }
 
     finish:
     SDL_DestroyRenderer(renderer);
