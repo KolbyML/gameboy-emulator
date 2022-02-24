@@ -11,6 +11,15 @@ std::uint8_t nibble_2(std::uint8_t byte) {
     return (byte & 0x0F);
 }
 
+std::uint16_t get_u16_register(std::uint8_t x, std::uint8_t y) {
+    return (x << 8) + y;
+}
+
+void set_u16_register(std::uint8_t &x, std::uint8_t &y, std::uint16_t z) {
+    x = z >> 8;
+    y = z & 0x00FF;
+}
+
 bool get_bit(std::uint8_t byte, std::uint8_t index) {
     assert(0 <= index <= 7);
     int i = 7 - index;
