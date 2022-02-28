@@ -45,7 +45,6 @@ int main(int argc, char* argv[]) {
 
     init_SDL2();
 
-    Registers registers = {};
     Flag_register flag_register = {};
 
     while (true) {

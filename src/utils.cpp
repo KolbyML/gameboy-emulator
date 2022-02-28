@@ -11,13 +11,36 @@ std::uint8_t nibble_2(std::uint8_t byte) {
     return (byte & 0x0F);
 }
 
-std::uint16_t get_u16_register(std::uint8_t x, std::uint8_t y) {
-    return (x << 8) + y;
+bool is_half_carry_u8(std::uint8_t x, std::uint8_t y, std::uint8_t z = 0) {
+    return (((x & 0x0F) + (y & 0x0F) + z) & 0x10) == 0b00010000;
 }
 
-void set_u16_register(std::uint8_t &x, std::uint8_t &y, std::uint16_t z) {
-    x = z >> 8;
-    y = z & 0x00FF;
+bool is_carry_u8(std::uint8_t x, std::uint8_t y, std::uint8_t z = 0) {
+    return (((std::uint16_t)x + (std::uint16_t)y + z) & 0x100) == 0b100000000;
+}
+
+bool is_half_carry_i8(std::uint8_t x, std::int8_t y) {
+    return (((x & 0x0F) + (y & 0x0F)) & 0x10) == 0b00010000;
+}
+
+bool is_carry_i8(std::uint8_t x, std::int8_t y) {
+    return (((std::uint16_t)x + (std::uint16_t)y) & 0x100) == 0b100000000;
+}
+
+bool is_carry_u8_u16(std::uint8_t x, std::uint16_t y, std::uint8_t z = 0) {
+    return (((std::uint16_t)x + (y & 0xFF) + z) & 0x100) == 0b100000000;
+}
+
+bool is_half_carry_u16(std::uint16_t x, std::uint16_t y) {
+    return (((x & 0x0FFF) + (y & 0x0FFF)) & 0x1000) == 0b1000000000000;
+}
+
+bool is_carry_u16(std::uint16_t x, std::uint16_t y) {
+    return (((std::uint32_t)x + (std::uint32_t)y) & 0x10000) == 0b10000000000000000;
+}
+
+bool is_borrow_from_bit4(std::uint8_t x, std::uint8_t y) {
+    return (x & 0x08) < (y & 0x08);
 }
 
 bool get_bit(std::uint8_t byte, std::uint8_t index) {
