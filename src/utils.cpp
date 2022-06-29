@@ -49,6 +49,27 @@ bool get_bit(std::uint8_t byte, std::uint8_t index) {
     return (byte & 1 << i) >> i;
 }
 
+void set_bit(std::uint8_t& byte, std::uint8_t index, bool set) {
+    assert(0 <= index <= 7);
+    if (set) {
+        byte = byte | (1 << index);
+    } else {
+        byte = byte & ~(1 << index);
+    }
+}
+
+void rotate_left(std::uint8_t& byte) {
+    byte = (byte << 1) | (bool)(byte >> 7);
+}
+
+void rotate_right(std::uint8_t& byte) {
+    byte = (byte >> 1) | (std::uint8_t)(byte << 7);
+}
+
+void swap_nibbles(std::uint8_t& byte) {
+    byte = ((byte & 0xF0) >> 4) | ((byte & 0x0F) << 4);
+}
+
 void collect_digits(std::vector<std::uint8_t>& digits, std::uint8_t num) {
     if (num > 9) {
         collect_digits(digits, num / 10);
