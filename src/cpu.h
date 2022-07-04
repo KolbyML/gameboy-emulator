@@ -6,10 +6,10 @@
 #define GAMEBOY_EMULATOR_CPU_H
 
 class Virtual_Register {
-    std::uint8_t *x;
-    std::uint8_t *y;
+    uint8_t *x;
+    uint8_t *y;
 public:
-    Virtual_Register(std::uint8_t &x, std::uint8_t &y) : x(&x), y(&y) {};
+    Virtual_Register(uint8_t &x, uint8_t &y) : x(&x), y(&y) {};
 
     std::uint16_t get() {
         return (*x << 8) + *y;
@@ -23,37 +23,44 @@ public:
     void increment(std::int8_t z) {
         set(get() + z);
     }
+
+    void decrement(std::int8_t z) {
+        set(get() - z);
+    }
 };
 
 struct Registers {
-    std::uint8_t A;
-    std::uint8_t B;
-    std::uint8_t C;
-    std::uint8_t D;
-    std::uint8_t E;
-    std::uint8_t F;
-    std::uint8_t H;
-    std::uint8_t L;
+    uint8_t A;
+    uint8_t B;
+    uint8_t C;
+    uint8_t D;
+    uint8_t E;
+    uint8_t F;
+    uint8_t H;
+    uint8_t L;
     std::uint16_t stack_pointer;
     std::uint16_t program_counter;
 };
 
-static Registers registers = {};
-static Virtual_Register AF = Virtual_Register(registers.A, registers.F);
-static Virtual_Register BC = Virtual_Register(registers.B, registers.C);
-static Virtual_Register DE = Virtual_Register(registers.D, registers.E);
-static Virtual_Register HL = Virtual_Register(registers.H, registers.L);
+extern Registers registers;
+extern Virtual_Register AF;
+extern Virtual_Register BC;
+extern Virtual_Register DE;
+extern Virtual_Register HL;
+extern bool IME;
+
 
 struct Flag_register {
-    std::uint8_t z;
+    uint8_t z;
     // This bit is set if and only if the result of an operation is zero. Used by conditional jumps.
-    std::uint8_t n;
-    std::uint8_t h;
+    uint8_t n;
+    uint8_t h;
     // https://gbdev.io/pandocs/CPU_Registers_and_Flags.html#the-bcd-flags-n-h
-    std::uint8_t c;
+    uint8_t c;
     // https://gbdev.io/pandocs/CPU_Registers_and_Flags.html#the-carry-flag-c-or-cy
 };
 
-void cpu_cycle(std::vector<std::uint8_t> &memory, Registers &registers, Flag_register &flag_register);
+void cpu_cycle(std::vector<uint8_t> &memory, Flag_register &flag_register);
+void set_flags(Flag_register &flag_register, std::int8_t Z, std::int8_t N, std::int8_t H, std::int8_t C);
 
 #endif //GAMEBOY_EMULATOR_CPU_H
