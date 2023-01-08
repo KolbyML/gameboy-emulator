@@ -47,8 +47,6 @@ extern Virtual_Register AF;
 extern Virtual_Register BC;
 extern Virtual_Register DE;
 extern Virtual_Register HL;
-extern bool IME;
-
 
 struct Flag_register {
     uint8_t z;
@@ -60,7 +58,7 @@ struct Flag_register {
     // https://gbdev.io/pandocs/CPU_Registers_and_Flags.html#the-carry-flag-c-or-cy
 };
 
-void cpu_cycle(std::vector<uint8_t> &memory, Flag_register &flag_register);
+void cpu_cycle(memory_bus &bus, Flag_register &flag_register);
 void set_flags(Flag_register &flag_register, std::int8_t Z, std::int8_t N, std::int8_t H, std::int8_t C);
 
 #endif //GAMEBOY_EMULATOR_CPU_H

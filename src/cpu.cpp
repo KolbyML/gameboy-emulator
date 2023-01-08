@@ -16,7 +16,6 @@ Virtual_Register AF = Virtual_Register(registers.A, registers.F);
 Virtual_Register BC = Virtual_Register(registers.B, registers.C);
 Virtual_Register DE = Virtual_Register(registers.D, registers.E);
 Virtual_Register HL = Virtual_Register(registers.H, registers.L);
-bool IME = false;
 
 void set_flags(Flag_register &flag_register, std::int8_t Z, std::int8_t N, std::int8_t H, std::int8_t C) {
     if (Z != -1) flag_register.z = Z;
@@ -25,7 +24,7 @@ void set_flags(Flag_register &flag_register, std::int8_t Z, std::int8_t N, std::
     if (C != -1) flag_register.c = C;
 }
 
-void INC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void INC(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x03: {
             BC.increment(1);
@@ -52,8 +51,8 @@ void INC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.H += 1;
             break;
         } case 0x34: {
-            set_flags(flag_register, (uint8_t)(memory[HL.get()] + 1) == 0, 0, is_half_carry_u8(memory[HL.get()], 1), -1);
-            memory[HL.get()] += 1;
+            set_flags(flag_register, (uint8_t)(bus.get_memory(HL.get()) + 1) == 0, 0, is_half_carry_u8(bus.get_memory(HL.get()), 1), -1);
+            bus.set_memory(HL.get(), bus.get_memory(HL.get()) + 1);
             break;
         } case 0x0C: {
             set_flags(flag_register, (uint8_t)(registers.C + 1) == 0, 0, is_half_carry_u8(registers.C, 1), -1);
@@ -79,7 +78,7 @@ void INC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void DEC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void DEC(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x05: {
             set_flags(flag_register, (uint8_t)(registers.B - 1) == 0, 1, is_borrow_from_bit4(registers.B, 1), -1);
@@ -94,8 +93,8 @@ void DEC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.H -= 1;
             break;
         } case 0x35: {
-            set_flags(flag_register, (uint8_t)(memory[HL.get()] - 1) == 0, 1, is_borrow_from_bit4(memory[HL.get()], 1), -1);
-            memory[HL.get()] -= 1;
+            set_flags(flag_register, (uint8_t)(bus.get_memory(HL.get()) - 1) == 0, 1, is_borrow_from_bit4(bus.get_memory(HL.get()), 1), -1);
+            bus.set_memory(HL.get(), bus.get_memory(HL.get()) - 1);
             break;
         } case 0x0B: {
             BC.decrement(1);
@@ -133,54 +132,64 @@ void DEC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void CALL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void CALL(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xC4: {
             if (!(bool)flag_register.z) {
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0xFF00) >> 8;
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0xFF00) >> 8);
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0x00FF);
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0x00FF));
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xD4: {
             if (!(bool)flag_register.c) {
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0xFF00) >> 8;
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0xFF00) >> 8);
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0x00FF);
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0x00FF));
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xCC: {
             if ((bool)flag_register.z) {
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0xFF00) >> 8;
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0xFF00) >> 8);
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0x00FF);
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0x00FF));
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xDC: {
             if ((bool)flag_register.c) {
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0xFF00) >> 8;
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0xFF00) >> 8);
                 registers.stack_pointer -= 1;
-                memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0x00FF);
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0x00FF));
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xCD: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter + 2) & 0x00FF);
-            uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter + 2) & 0x00FF));
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
             registers.program_counter = nnnn;
             break;
         }
@@ -191,69 +200,69 @@ void CALL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RST(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void RST(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xC7: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x00;
             registers.program_counter = nnnn;
             break;
         } case 0xD7: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x10;
             registers.program_counter = nnnn;
             break;
         } case 0xE7: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x20;
             registers.program_counter = nnnn;
             break;
         } case 0xF7: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x30;
             registers.program_counter = nnnn;
             break;
         } case 0xCF: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x08;
             registers.program_counter = nnnn;
             break;
         } case 0xDF: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x18;
             registers.program_counter = nnnn;
             break;
         } case 0xEF: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x28;
             registers.program_counter = nnnn;
             break;
         } case 0xFF: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0xFF00) >> 8;
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0xFF00) >> 8);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = ((registers.program_counter) & 0x00FF);
+            bus.set_memory(registers.stack_pointer, ((registers.program_counter) & 0x00FF));
             uint16_t nnnn = 0x38;
             registers.program_counter = nnnn;
             break;
@@ -265,22 +274,28 @@ void RST(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void JP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void JP(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xC2: {
             if (!(bool)flag_register.z) {
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xD2: {
             if (!(bool)flag_register.c) {
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xC3: {
-            uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
             registers.program_counter = nnnn;
             break;
         } case 0xE9: {
@@ -288,13 +303,17 @@ void JP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0xCA: {
             if ((bool)flag_register.z) {
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
         } case 0xDA: {
             if ((bool)flag_register.c) {
-                uint16_t nnnn = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
+                uint8_t lower_8bits = bus.fetch(registers.program_counter);
+                uint8_t upper_8bits = bus.fetch(registers.program_counter);
+                uint16_t nnnn = Virtual_Register(upper_8bits, lower_8bits).get();
                 registers.program_counter = nnnn;
             } else registers.program_counter += 2;
             break;
@@ -306,33 +325,33 @@ void JP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void JR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void JR(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x20: {
             if (!(bool)flag_register.z) {
-                int8_t nn = memory[registers.program_counter];
+                int8_t nn = bus.get_memory(registers.program_counter);
                 registers.program_counter += nn;
             }
             break;
         } case 0x30: {
             if (!(bool)flag_register.c) {
-                int8_t nn = memory[registers.program_counter];
+                int8_t nn = bus.get_memory(registers.program_counter);
                 registers.program_counter += nn;
             }
             break;
         } case 0x18: {
-            std::int8_t nn = memory[registers.program_counter];
+            std::int8_t nn = bus.get_memory(registers.program_counter);
             registers.program_counter += nn;
             break;
         } case 0x28: {
             if ((bool)flag_register.z) {
-                std::int8_t nn = memory[registers.program_counter];
+                std::int8_t nn = bus.get_memory(registers.program_counter);
                 registers.program_counter += nn;
             }
             break;
         } case 0x38: {
             if ((bool)flag_register.c) {
-                std::int8_t nn = memory[registers.program_counter];
+                std::int8_t nn = bus.get_memory(registers.program_counter);
                 registers.program_counter += nn;
             }
             break;
@@ -345,32 +364,24 @@ void JR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void POP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void POP(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xC1: {
-            registers.C = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
-            registers.B = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
+            registers.C = bus.fetch(registers.stack_pointer);
+            registers.B = bus.fetch(registers.stack_pointer);
             break;
         } case 0xD1: {
-            registers.E = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
-            registers.D = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
+            registers.E = bus.fetch(registers.stack_pointer);
+            registers.D = bus.fetch(registers.stack_pointer);
             break;
         } case 0xE1: {
-            registers.L = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
-            registers.H = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
+            registers.L = bus.fetch(registers.stack_pointer);
+            registers.H = bus.fetch(registers.stack_pointer);
             break;
         } case 0xF1: {
-            uint8_t reg_F = memory[registers.stack_pointer];
+            uint8_t reg_F = bus.fetch(registers.stack_pointer);
             set_flags(flag_register, get_bit(reg_F, 7), get_bit(reg_F, 6), get_bit(reg_F, 5), get_bit(reg_F, 4));
-            registers.stack_pointer += 1;
-            registers.A = memory[registers.stack_pointer];
-            registers.stack_pointer += 1;
+            registers.A = bus.fetch(registers.stack_pointer);
             break;
         }
         default:
@@ -380,31 +391,31 @@ void POP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void PUSH(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void PUSH(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xC5: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.B;
+            bus.set_memory(registers.stack_pointer, registers.B);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.C;
+            bus.set_memory(registers.stack_pointer, registers.C);
             break;
         } case 0xD5: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.D;
+            bus.set_memory(registers.stack_pointer, registers.D);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.E;
+            bus.set_memory(registers.stack_pointer, registers.E);
             break;
         } case 0xE5: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.H;
+            bus.set_memory(registers.stack_pointer, registers.H);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.L;
+            bus.set_memory(registers.stack_pointer, registers.L);
             break;
         } case 0xF5: {
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = registers.A;
+            bus.set_memory(registers.stack_pointer, registers.A);
             registers.stack_pointer -= 1;
-            memory[registers.stack_pointer] = (uint8_t)(flag_register.z << 7 | flag_register.n << 6 | flag_register.h << 5 | flag_register.c << 4);
+            bus.set_memory(registers.stack_pointer, (uint8_t)(flag_register.z << 7 | flag_register.n << 6 | flag_register.h << 5 | flag_register.c << 4));
             break;
         }
         default:
@@ -414,34 +425,39 @@ void PUSH(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void RET(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xC0: {
             if (!(bool)flag_register.z) {
-                registers.program_counter = Virtual_Register(memory[registers.stack_pointer + 1], memory[registers.stack_pointer]).get();
-                registers.stack_pointer += 2;
+                uint8_t lower_8bits = bus.fetch(registers.stack_pointer);
+                uint8_t upper_8bits = bus.fetch(registers.stack_pointer);
+                registers.program_counter = Virtual_Register(upper_8bits, lower_8bits).get();
             }
             break;
         } case 0xD0: {
             if (!(bool)flag_register.c) {
-                registers.program_counter = Virtual_Register(memory[registers.stack_pointer + 1], memory[registers.stack_pointer]).get();
-                registers.stack_pointer += 2;
+                uint8_t lower_8bits = bus.fetch(registers.stack_pointer);
+                uint8_t upper_8bits = bus.fetch(registers.stack_pointer);
+                registers.program_counter = Virtual_Register(upper_8bits, lower_8bits).get();
             }
             break;
         } case 0xC9: {
-            registers.program_counter = Virtual_Register(memory[registers.stack_pointer + 1], memory[registers.stack_pointer]).get();
-            registers.stack_pointer += 2;
+            uint8_t lower_8bits = bus.fetch(registers.stack_pointer);
+            uint8_t upper_8bits = bus.fetch(registers.stack_pointer);
+            registers.program_counter = Virtual_Register(upper_8bits, lower_8bits).get();
             break;
         } case 0xC8: {
             if ((bool)flag_register.z) {
-                registers.program_counter = Virtual_Register(memory[registers.stack_pointer + 1], memory[registers.stack_pointer]).get();
-                registers.stack_pointer += 2;
+                uint8_t lower_8bits = bus.fetch(registers.stack_pointer);
+                uint8_t upper_8bits = bus.fetch(registers.stack_pointer);
+                registers.program_counter = Virtual_Register(upper_8bits, lower_8bits).get();
             }
             break;
         } case 0xD8: {
             if ((bool)flag_register.c) {
-                registers.program_counter = Virtual_Register(memory[registers.stack_pointer + 1], memory[registers.stack_pointer]).get();
-                registers.stack_pointer += 2;
+                uint8_t lower_8bits = bus.fetch(registers.stack_pointer);
+                uint8_t upper_8bits = bus.fetch(registers.stack_pointer);
+                registers.program_counter = Virtual_Register(upper_8bits, lower_8bits).get();
             }
             break;
         }
@@ -452,13 +468,13 @@ void RET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RLCA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void RLCA(memory_bus &bus, Flag_register &flag_register) {
     set_flags(flag_register, 0, 0, 0, get_bit(registers.A, 7));
     rotate_left(registers.A);
     return;
 }
 
-void RLA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void RLA(memory_bus &bus, Flag_register &flag_register) {
     uint8_t carry = flag_register.c;
     set_flags(flag_register, 0, 0, 0, get_bit(registers.A, 7));
     rotate_left(registers.A);
@@ -466,13 +482,13 @@ void RLA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RRCA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void RRCA(memory_bus &bus, Flag_register &flag_register) {
     set_flags(flag_register, 0, 0, 0, get_bit(registers.A, 0));
     rotate_right(registers.A);
     return;
 }
 
-void RRA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void RRA(memory_bus &bus, Flag_register &flag_register) {
     uint8_t carry = flag_register.c;
     set_flags(flag_register, 0, 0, 0, get_bit(registers.A, 0));
     rotate_right(registers.A);
@@ -480,7 +496,7 @@ void RRA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void DAA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void DAA(memory_bus &bus, Flag_register &flag_register) {
     if (!flag_register.n) {
         if (flag_register.c || registers.A > 0x99) { registers.A += 0x60; flag_register.c = 1; }
         if (flag_register.h || (registers.A & 0x0f) > 0x09) { registers.A += 0x6; }
@@ -494,45 +510,46 @@ void DAA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SCF(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void SCF(memory_bus &bus, Flag_register &flag_register) {
     set_flags(flag_register, -1, 0, 0, 1);
     return;
 }
 
-void CPL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void CPL(memory_bus &bus, Flag_register &flag_register) {
     set_flags(flag_register, -1, 1, 1, -1);
     registers.A = ~registers.A;
     return;
 }
 
-void CCF(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void CCF(memory_bus &bus, Flag_register &flag_register) {
     set_flags(flag_register, -1, 0, 0, flag_register.c ^ 1);
     return;
 }
 
-void DI(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    IME = false;
+void DI(memory_bus &bus, Flag_register &flag_register) {
+    bus.set_ime_false();
     return;
 }
 
-void EI(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    IME = true;
+void EI(memory_bus &bus, Flag_register &flag_register) {
+    bus.set_ei_ime_true();
     return;
 }
 
-void RETI(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    IME = true;
-    registers.program_counter = Virtual_Register(memory[registers.stack_pointer + 1], memory[registers.stack_pointer]).get();
-    registers.stack_pointer += 2;
+void RETI(memory_bus &bus, Flag_register &flag_register) {
+    bus.set_ime_true();
+    uint8_t lower_8bits = bus.fetch(registers.stack_pointer);
+    uint8_t upper_8bits = bus.fetch(registers.stack_pointer);
+    registers.program_counter = Virtual_Register(upper_8bits, lower_8bits).get();
     return;
 }
 
-void NOP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void NOP(memory_bus &bus, Flag_register &flag_register) {
     return;
 }
 
-void HALT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    if (IME) {
+void HALT(memory_bus &bus, Flag_register &flag_register) {
+    if (bus.get_ime()) {
 
     } else {
 
@@ -540,7 +557,7 @@ void HALT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SUB(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void SUB(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x90: {
             set_flags(flag_register, (uint8_t)(registers.A - registers.B) == 0, 1, is_borrow_from_bit4(registers.A, registers.B), registers.B > registers.A);
@@ -567,18 +584,17 @@ void SUB(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.A = registers.A - registers.L;
             break;
         } case 0x96: {
-            set_flags(flag_register, (uint8_t)(registers.A - memory[HL.get()]) == 0, 1, is_borrow_from_bit4(registers.A, memory[HL.get()]), memory[HL.get()] > registers.A);
-            registers.A = registers.A - memory[HL.get()];
+            set_flags(flag_register, (uint8_t)(registers.A - bus.get_memory(HL.get())) == 0, 1, is_borrow_from_bit4(registers.A, bus.get_memory(HL.get())), bus.get_memory(HL.get()) > registers.A);
+            registers.A = registers.A - bus.get_memory(HL.get());
             break;
         } case 0x97: {
             set_flags(flag_register, (uint8_t)(registers.A - registers.A) == 0, 1, is_borrow_from_bit4(registers.A, registers.A), 0);
             registers.A = registers.A - registers.A;
             break;
         } case 0xD6: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, (uint8_t)(registers.A - nn) == 0, 1, is_borrow_from_bit4(registers.A, nn), nn > registers.A);
             registers.A = registers.A - nn;
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -588,7 +604,7 @@ void SUB(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SBC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void SBC(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x98: {
             uint8_t c = flag_register.c;
@@ -622,8 +638,8 @@ void SBC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0x9E: {
             uint8_t c = flag_register.c;
-            set_flags(flag_register, (uint8_t)(registers.A - memory[HL.get()] - c) == 0, 1, is_borrow_from_bit4(registers.A, memory[HL.get()], c), memory[HL.get()] + c > registers.A);
-            registers.A = registers.A - memory[HL.get()] - c;
+            set_flags(flag_register, (uint8_t)(registers.A - bus.get_memory(HL.get()) - c) == 0, 1, is_borrow_from_bit4(registers.A, bus.get_memory(HL.get()), c), bus.get_memory(HL.get()) + c > registers.A);
+            registers.A = registers.A - bus.get_memory(HL.get()) - c;
             break;
         } case 0x9F: {
             uint8_t c = flag_register.c;
@@ -632,10 +648,9 @@ void SBC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0xDE: {
             uint8_t c = flag_register.c;
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, (uint8_t)(registers.A - nn - c) == 0, 1, is_borrow_from_bit4(registers.A, nn, c), nn + c > registers.A);
             registers.A = registers.A - nn - c;
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -645,7 +660,7 @@ void SBC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void CP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void CP(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xB8: {
             set_flags(flag_register, (uint8_t)(registers.A - registers.B) == 0, 1, is_borrow_from_bit4(registers.A, registers.B), registers.B > registers.A);
@@ -666,15 +681,14 @@ void CP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, (uint8_t)(registers.A - registers.L) == 0, 1, is_borrow_from_bit4(registers.A, registers.L), registers.L > registers.A);
             break;
         } case 0xBE: {
-            set_flags(flag_register, (uint8_t)(registers.A - memory[HL.get()]) == 0, 1, ((registers.A & 0xF) < (memory[HL.get()] & 0xF)), memory[HL.get()] > registers.A);
+            set_flags(flag_register, (uint8_t)(registers.A - bus.get_memory(HL.get())) == 0, 1, ((registers.A & 0xF) < (bus.get_memory(HL.get()) & 0xF)), bus.get_memory(HL.get()) > registers.A);
             break;
         } case 0xBF: {
             set_flags(flag_register, (uint8_t)(registers.A - registers.A) == 0, 1, is_borrow_from_bit4(registers.A, registers.A), 0);
             break;
         } case 0xFE: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, (uint8_t)(registers.A - nn) == 0, 1, is_borrow_from_bit4(registers.A, nn), nn > registers.A);
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -684,7 +698,7 @@ void CP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void ADD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void ADD(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x09: {
             set_flags(flag_register, -1, 0, is_half_carry_u16(HL.get(), BC.get()), is_carry_u16(HL.get(), BC.get()));
@@ -727,24 +741,22 @@ void ADD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.A = registers.A + registers.L;
             break;
         } case 0x86: {
-            set_flags(flag_register, (uint8_t)(registers.A + memory[HL.get()]) == 0, 0, is_half_carry_u8(registers.A, memory[HL.get()]), is_carry_u8_u16(registers.A, memory[HL.get()]));
-            registers.A = registers.A + memory[HL.get()];
+            set_flags(flag_register, (uint8_t)(registers.A + bus.get_memory(HL.get())) == 0, 0, is_half_carry_u8(registers.A, bus.get_memory(HL.get())), is_carry_u8_u16(registers.A, bus.get_memory(HL.get())));
+            registers.A = registers.A + bus.get_memory(HL.get());
             break;
         } case 0x87: {
             set_flags(flag_register, (uint8_t)(registers.A + registers.A) == 0, 0, is_half_carry_u8(registers.A, registers.A), is_carry_u8(registers.A, registers.A));
             registers.A = registers.A + registers.A;
             break;
         } case 0xC6: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, (uint8_t)(registers.A + nn) == 0, 0, is_half_carry_u8(registers.A, nn), is_carry_u8(registers.A, nn));
             registers.A = registers.A + nn;
-            registers.program_counter += 1;
             break;
         } case 0xE8: {
-            std::int8_t nn = memory[registers.program_counter];
+            int8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, 0, 0, (((registers.stack_pointer & 0xF) + (nn & 0xF)) > 0x0F), (((registers.stack_pointer & 0xFF) + (nn & 0xFF)) > 0xFF));
             registers.stack_pointer = registers.stack_pointer + nn;
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -754,7 +766,7 @@ void ADD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void AND(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void AND(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xA0: {
             registers.A = registers.A & registers.B;
@@ -781,7 +793,7 @@ void AND(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.A == 0, 0, 1, 0);
             break;
         } case 0xA6: {
-            registers.A = registers.A & memory[HL.get()];
+            registers.A = registers.A & bus.get_memory(HL.get());
             set_flags(flag_register, registers.A == 0, 0, 1, 0);
             break;
         } case 0xA7: {
@@ -789,10 +801,9 @@ void AND(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.A == 0, 0, 1, 0);
             break;
         } case 0xE6: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.A = registers.A & nn;
             set_flags(flag_register, registers.A == 0, 0, 1, 0);
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -802,7 +813,7 @@ void AND(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void XOR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void XOR(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xA8: {
             registers.A = registers.A ^ registers.B;
@@ -829,7 +840,7 @@ void XOR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
             break;
         } case 0xAE: {
-            registers.A = registers.A ^ memory[HL.get()];
+            registers.A = registers.A ^ bus.get_memory(HL.get());
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
             break;
         } case 0xAF: {
@@ -837,10 +848,9 @@ void XOR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
             break;
         } case 0xEE: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.A = registers.A ^ nn;
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -850,7 +860,7 @@ void XOR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void OR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void OR(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0xB0: {
             registers.A = registers.A | registers.B;
@@ -877,7 +887,7 @@ void OR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
             break;
         } case 0xB6: {
-            registers.A = registers.A | memory[HL.get()];
+            registers.A = registers.A | bus.get_memory(HL.get());
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
             break;
         } case 0xB7: {
@@ -885,10 +895,9 @@ void OR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
             break;
         } case 0xF6: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.A = registers.A | nn;
             set_flags(flag_register, registers.A == 0, 0, 0, 0);
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -898,7 +907,7 @@ void OR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void ADC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void ADC(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x88: {
             uint8_t c = flag_register.c;
@@ -932,8 +941,8 @@ void ADC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0x8E: {
             uint8_t c = flag_register.c;
-            set_flags(flag_register, (uint8_t)(registers.A + memory[HL.get()] + c) == 0, 0, is_half_carry_u8(registers.A, memory[HL.get()], c), is_carry_u8_u16(registers.A, memory[HL.get()], c));
-            registers.A = registers.A + memory[HL.get()] + c;
+            set_flags(flag_register, (uint8_t)(registers.A + bus.get_memory(HL.get()) + c) == 0, 0, is_half_carry_u8(registers.A, bus.get_memory(HL.get()), c), is_carry_u8_u16(registers.A, bus.get_memory(HL.get()), c));
+            registers.A = registers.A + bus.get_memory(HL.get()) + c;
             break;
         } case 0x8F: {
             uint8_t c = flag_register.c;
@@ -942,10 +951,9 @@ void ADC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0xCE: {
             uint8_t c = flag_register.c;
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, (uint8_t)(registers.A + nn + c) == 0, 0, is_half_carry_u8(registers.A, nn, c), is_carry_u8(registers.A, nn, c));
             registers.A = registers.A + nn + c;
-            registers.program_counter += 1;
             break;
         }
         default:
@@ -955,97 +963,94 @@ void ADC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
+void LOAD(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x01: {
-            BC.set(Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get());
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            BC.set(Virtual_Register(upper_8bits, lower_8bits).get());
             break;
         } case 0x11: {
-            DE.set(Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get());
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            DE.set(Virtual_Register(upper_8bits, lower_8bits).get());
             break;
         } case 0x21: {
-            HL.set(Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get());
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            HL.set(Virtual_Register(upper_8bits, lower_8bits).get());
             break;
         } case 0x31: {
-            registers.stack_pointer = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            registers.stack_pointer = Virtual_Register(upper_8bits, lower_8bits).get();
             break;
         } case 0x02: {
-            memory[BC.get()] = registers.A;
+            bus.set_memory(BC.get(), registers.A);
             break;
         } case 0x12: {
-            memory[DE.get()] = registers.A;
+            bus.set_memory(DE.get(), registers.A);
             break;
         } case 0x22: {
-            memory[HL.get()] = registers.A;
+            bus.set_memory(HL.get(), registers.A);
             HL.increment(1);
             break;
         } case 0x32: {
-            memory[HL.get()] = registers.A;
+            bus.set_memory(HL.get(), registers.A);
             HL.increment(-1);
             break;
         } case 0x06: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.B = nn;
-            registers.program_counter += 1;
             break;
         } case 0x16: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.D = nn;
-            registers.program_counter += 1;
             break;
         } case 0x26: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.H = nn;
-            registers.program_counter += 1;
             break;
         } case 0x36: {
-            uint8_t nn = memory[registers.program_counter];
-            memory[HL.get()] = nn;
-            registers.program_counter += 1;
+            uint8_t nn = bus.fetch(registers.program_counter);
+            bus.set_memory(HL.get(), nn);
             break;
         } case 0x0A: {
-            registers.A = memory[BC.get()];
+            registers.A = bus.get_memory(BC.get());
             break;
         } case 0x1A: {
-            registers.A = memory[DE.get()];
+            registers.A = bus.get_memory(DE.get());
             break;
         } case 0x2A: {
-            registers.A = memory[HL.get()];
+            registers.A = bus.get_memory(HL.get());
             HL.increment(1);
             break;
         } case 0x3A: {
-            registers.A = memory[HL.get()];
+            registers.A = bus.get_memory(HL.get());
             HL.increment(-1);
             break;
         } case 0x0E: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.C = nn;
-            registers.program_counter += 1;
             break;
         } case 0x1E: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.E = nn;
-            registers.program_counter += 1;
             break;
         } case 0x2E: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.L = nn;
-            registers.program_counter += 1;
             break;
         } case 0x3E: {
-            uint8_t nn = memory[registers.program_counter];
+            uint8_t nn = bus.fetch(registers.program_counter);
             registers.A = nn;
-            registers.program_counter += 1;
             break;
         } case 0x08: {
-            uint16_t u16 = Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get();
-            memory[u16] = (registers.stack_pointer & 0x00FF);
-            memory[u16 + 1] = (registers.stack_pointer & 0xFF00) >> 8;
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            uint16_t u16 = Virtual_Register(upper_8bits, lower_8bits).get();
+            bus.set_memory(u16, registers.stack_pointer & 0x00FF);
+            bus.set_memory(u16 + 1, (registers.stack_pointer & 0xFF00) >> 8);
             break;
         } case 0x40: {
             registers.B = registers.B;
@@ -1066,7 +1071,7 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.B = registers.L;
             break;
         } case 0x46: {
-            registers.B = memory[HL.get()];
+            registers.B = bus.get_memory(HL.get());
             break;
         } case 0x47: {
             registers.B = registers.A;
@@ -1090,7 +1095,7 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.C = registers.L;
             break;
         } case 0x4E: {
-            registers.C = memory[HL.get()];
+            registers.C = bus.get_memory(HL.get());
             break;
         } case 0x4F: {
             registers.C = registers.A;
@@ -1114,7 +1119,7 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.D = registers.L;
             break;
         } case 0x56: {
-            registers.D = memory[HL.get()];
+            registers.D = bus.get_memory(HL.get());
             break;
         } case 0x57: {
             registers.D = registers.A;
@@ -1138,7 +1143,7 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.E = registers.L;
             break;
         } case 0x5E: {
-            registers.E = memory[HL.get()];
+            registers.E = bus.get_memory(HL.get());
             break;
         } case 0x5F: {
             registers.E = registers.A;
@@ -1162,7 +1167,7 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.H = registers.L;
             break;
         } case 0x66: {
-            registers.H = memory[HL.get()];
+            registers.H = bus.get_memory(HL.get());
             break;
         } case 0x67: {
             registers.H = registers.A;
@@ -1186,32 +1191,31 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.L = registers.L;
             break;
         } case 0x6E: {
-            registers.L = memory[HL.get()];
+            registers.L = bus.get_memory(HL.get());
             break;
         } case 0x6F: {
             registers.L = registers.A;
             break;
         } case 0x70: {
-            // I am so confused how this is useful
-            memory[HL.get()] = registers.B;
+            bus.set_memory(HL.get(), registers.B);
             break;
         } case 0x71: {
-            memory[HL.get()] = registers.C;
+            bus.set_memory(HL.get(), registers.C);
             break;
         } case 0x72: {
-            memory[HL.get()] = registers.D;
+            bus.set_memory(HL.get(), registers.D);
             break;
         } case 0x73: {
-            memory[HL.get()] = registers.E;
+            bus.set_memory(HL.get(), registers.E);
             break;
         } case 0x74: {
-            memory[HL.get()] = registers.H;
+            bus.set_memory(HL.get(), registers.H);
             break;
         } case 0x75: {
-            memory[HL.get()] = registers.L;
+            bus.set_memory(HL.get(), registers.L);
             break;
         } case 0x77: {
-            memory[HL.get()] = registers.A;
+            bus.set_memory(HL.get(), registers.A);
             break;
         } case 0x78: {
             registers.A = registers.B;
@@ -1232,44 +1236,42 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             registers.A = registers.L;
             break;
         } case 0x7E: {
-            registers.A = memory[HL.get()];
+            registers.A = bus.get_memory(HL.get());
             break;
         } case 0x7F: {
             registers.A = registers.A;
             break;
         } case 0xE0: {
-            uint8_t nn = memory[registers.program_counter];
-            memory[0xFF00 + nn] = registers.A;
-            registers.program_counter += 1;
+            uint8_t nn = bus.fetch(registers.program_counter);
+            bus.set_memory(0xFF00 + nn, registers.A);
             break;
         } case 0xE2: {
-            memory[0xFF00 + registers.C] = registers.A;
+            bus.set_memory(0xFF00 + registers.C, registers.A);
             break;
         } case 0xEA: {
-            // not sure if I implemented this right
-            memory[Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get()]  = registers.A;
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            bus.set_memory(Virtual_Register(upper_8bits, lower_8bits).get(), registers.A);
             break;
         } case 0xF0: {
-            uint8_t nn = memory[registers.program_counter];
-            registers.A = memory[0xFF00 + nn];
-            registers.program_counter += 1;
+            uint8_t nn = bus.fetch(registers.program_counter);
+            registers.A = bus.get_memory(0xFF00 + nn);
             break;
         } case 0xF2: {
-            registers.A = memory[0xFF00 + registers.C];
+            registers.A = bus.get_memory(0xFF00 + registers.C);
             break;
         } case 0xF8: {
-            std::int8_t nn = memory[registers.program_counter];
+            std::int8_t nn = bus.fetch(registers.program_counter);
             set_flags(flag_register, 0, 0, (((registers.stack_pointer & 0xF) + (nn & 0xF)) > 0x0F), ((registers.stack_pointer & 0xFF) + (nn & 0xFF)) > 0xFF);
             HL.set(registers.stack_pointer + nn);
-            registers.program_counter += 1;
             break;
         } case 0xF9: {
             registers.stack_pointer = HL.get();
             break;
         } case 0xFA: {
-            registers.A = memory[Virtual_Register(memory[registers.program_counter + 1], memory[registers.program_counter]).get()];
-            registers.program_counter += 2;
+            uint8_t lower_8bits = bus.fetch(registers.program_counter);
+            uint8_t upper_8bits = bus.fetch(registers.program_counter);
+            registers.A = bus.get_memory(Virtual_Register(upper_8bits, lower_8bits).get());
             break;
         }
         default:
@@ -1279,8 +1281,8 @@ void LOAD(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RLC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void RLC(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x00: {
             set_flags(flag_register, registers.B == 0, 0, 0, get_bit(registers.B, 7));
             rotate_left(registers.B);
@@ -1306,8 +1308,10 @@ void RLC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             rotate_left(registers.L);
             break;
         } case 0x06: {
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, get_bit(memory[HL.get()], 7));
-            rotate_left(memory[HL.get()]);
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, get_bit(bus.get_memory(HL.get()), 7));
+            uint8_t nn = bus.get_memory(HL.get());
+            rotate_left(nn);
+            bus.set_memory(HL.get(), nn);
             break;
         } case 0x07: {
             set_flags(flag_register, registers.A == 0, 0, 0, get_bit(registers.A, 7));
@@ -1321,8 +1325,8 @@ void RLC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RRC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void RRC(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x08: {
             set_flags(flag_register, registers.B == 0, 0, 0, get_bit(registers.B, 0));
             rotate_right(registers.B);
@@ -1348,8 +1352,10 @@ void RRC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             rotate_right(registers.L);
             break;
         } case 0x0E: {
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, get_bit(memory[HL.get()], 0));
-            rotate_right(memory[HL.get()]);
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, get_bit(bus.get_memory(HL.get()), 0));
+            uint8_t nn = bus.get_memory(HL.get());
+            rotate_right(nn);
+            bus.set_memory(HL.get(), nn);
             break;
         } case 0x0F: {
             set_flags(flag_register, registers.A == 0, 0, 0, get_bit(registers.A, 0));
@@ -1363,8 +1369,8 @@ void RRC(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void RL(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x10: {
             uint8_t carry = flag_register.c;
             uint8_t carry_bit = get_bit(registers.B, 7);
@@ -1409,10 +1415,11 @@ void RL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0x16: {
             uint8_t carry = flag_register.c;
-            uint8_t carry_bit = get_bit(memory[HL.get()], 7);
-            rotate_left(memory[HL.get()]);
-            set_bit(memory[HL.get()], 0, carry);
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, carry_bit);
+            uint8_t carry_bit = get_bit(bus.get_memory(HL.get()), 7);
+            uint8_t nn = bus.get_memory(HL.get());
+            rotate_left(nn);
+            bus.set_memory(HL.get(), set_bit2(nn, 0, carry));
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, carry_bit);
             break;
         } case 0x17: {
             uint8_t carry = flag_register.c;
@@ -1429,8 +1436,8 @@ void RL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void RR(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x18: {
             uint8_t carry = flag_register.c;
             uint8_t carry_bit = get_bit(registers.B, 0);
@@ -1475,10 +1482,11 @@ void RR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             break;
         } case 0x1E: {
             uint8_t carry = flag_register.c;
-            uint8_t carry_bit = get_bit(memory[HL.get()], 0);
-            rotate_right(memory[HL.get()]);
-            set_bit(memory[HL.get()], 7, carry);
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, carry_bit);
+            uint8_t carry_bit = get_bit(bus.get_memory(HL.get()), 0);
+            uint8_t nn = bus.get_memory(HL.get());
+            rotate_right(nn);
+            bus.set_memory(HL.get(), set_bit2(nn, 7, carry));
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, carry_bit);
             break;
         } case 0x1F: {
             uint8_t carry = flag_register.c;
@@ -1495,8 +1503,8 @@ void RR(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SLA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void SLA(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x20: {
             uint8_t carry = get_bit(registers.B, 7);
             registers.B = (uint8_t)(registers.B << 1);
@@ -1528,9 +1536,9 @@ void SLA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.L == 0, 0, 0, carry);
             break;
         } case 0x26: {
-            uint8_t carry = get_bit(memory[HL.get()], 7);
-            memory[HL.get()] = (uint8_t)(memory[HL.get()] << 1);
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, carry);
+            uint8_t carry = get_bit(bus.get_memory(HL.get()), 7);
+            bus.set_memory(HL.get(), bus.get_memory(HL.get()) << 1);
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, carry);
             break;
         } case 0x27: {
             uint8_t carry = get_bit(registers.A, 7);
@@ -1545,8 +1553,8 @@ void SLA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SRA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void SRA(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x28: {
             uint8_t carry = get_bit(registers.B, 0);
             registers.B = (uint8_t)((registers.B >> 1) | (registers.B & 0x80));
@@ -1578,9 +1586,9 @@ void SRA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.L == 0, 0, 0, carry);
             break;
         } case 0x2E: {
-            uint8_t carry = get_bit(memory[HL.get()], 0);
-            memory[HL.get()] = (uint8_t)((memory[HL.get()] >> 1) | (memory[HL.get()] & 0x80));
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, carry);
+            uint8_t carry = get_bit(bus.get_memory(HL.get()), 0);
+            bus.set_memory(HL.get(),(bus.get_memory(HL.get()) >> 1) | (bus.get_memory(HL.get()) & 0x80));
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, carry);
             break;
         } case 0x2F: {
             uint8_t carry = get_bit(registers.A, 0);
@@ -1595,8 +1603,8 @@ void SRA(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SWAP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void SWAP(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x30: {
             swap_nibbles(registers.B);
             set_flags(flag_register, registers.B == 0, 0, 0, 0);
@@ -1622,8 +1630,10 @@ void SWAP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.L == 0, 0, 0, 0);
             break;
         } case 0x36: {
-            swap_nibbles(memory[HL.get()]);
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, 0);
+            uint8_t nn = bus.get_memory(HL.get());
+            swap_nibbles(nn);
+            bus.set_memory(HL.get(), nn);
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, 0);
             break;
         } case 0x37: {
             swap_nibbles(registers.A);
@@ -1637,8 +1647,8 @@ void SWAP(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SRL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void SRL(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x38: {
             uint8_t carry = get_bit(registers.B, 0);
             registers.B = (uint8_t)(registers.B >> 1);
@@ -1670,9 +1680,9 @@ void SRL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, registers.L == 0, 0, 0, carry);
             break;
         } case 0x3E: {
-            uint8_t carry = get_bit(memory[HL.get()], 0);
-            memory[HL.get()] = (uint8_t)(memory[HL.get()] >> 1);
-            set_flags(flag_register, memory[HL.get()] == 0, 0, 0, carry);
+            uint8_t carry = get_bit(bus.get_memory(HL.get()), 0);
+            bus.set_memory(HL.get(), bus.get_memory(HL.get()) >> 1);
+            set_flags(flag_register, bus.get_memory(HL.get()) == 0, 0, 0, carry);
             break;
         } case 0x3F: {
             uint8_t carry = get_bit(registers.A, 0);
@@ -1687,8 +1697,8 @@ void SRL(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void BIT(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x40: {
             set_flags(flag_register, get_bit(registers.B, 0) == 0, 0, 1, -1);
             break;
@@ -1708,7 +1718,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 0) == 0, 0, 1, -1);
             break;
         } case 0x46: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 0) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 0) == 0, 0, 1, -1);
             break;
         } case 0x47: {
             set_flags(flag_register, get_bit(registers.A, 0) == 0, 0, 1, -1);
@@ -1732,7 +1742,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 1) == 0, 0, 1, -1);
             break;
         } case 0x4E: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 1) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 1) == 0, 0, 1, -1);
             break;
         } case 0x4F: {
             set_flags(flag_register, get_bit(registers.A, 1) == 0, 0, 1, -1);
@@ -1756,7 +1766,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 2) == 0, 0, 1, -1);
             break;
         } case 0x56: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 2) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 2) == 0, 0, 1, -1);
             break;
         } case 0x57: {
             set_flags(flag_register, get_bit(registers.A, 2) == 0, 0, 1, -1);
@@ -1780,7 +1790,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 3) == 0, 0, 1, -1);
             break;
         } case 0x5E: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 3) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 3) == 0, 0, 1, -1);
             break;
         } case 0x5F: {
             set_flags(flag_register, get_bit(registers.A, 3) == 0, 0, 1, -1);
@@ -1804,7 +1814,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 4) == 0, 0, 1, -1);
             break;
         } case 0x66: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 4) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 4) == 0, 0, 1, -1);
             break;
         } case 0x67: {
             set_flags(flag_register, get_bit(registers.A, 4) == 0, 0, 1, -1);
@@ -1828,7 +1838,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 5) == 0, 0, 1, -1);
             break;
         } case 0x6E: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 5) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 5) == 0, 0, 1, -1);
             break;
         } case 0x6F: {
             set_flags(flag_register, get_bit(registers.A, 5) == 0, 0, 1, -1);
@@ -1852,7 +1862,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 6) == 0, 0, 1, -1);
             break;
         } case 0x76: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 6) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 6) == 0, 0, 1, -1);
             break;
         } case 0x77: {
             set_flags(flag_register, get_bit(registers.A, 6) == 0, 0, 1, -1);
@@ -1876,7 +1886,7 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_flags(flag_register, get_bit(registers.L, 7) == 0, 0, 1, -1);
             break;
         } case 0x7E: {
-            set_flags(flag_register, get_bit(memory[HL.get()], 7) == 0, 0, 1, -1);
+            set_flags(flag_register, get_bit(bus.get_memory(HL.get()), 7) == 0, 0, 1, -1);
             break;
         } case 0x7F: {
             set_flags(flag_register, get_bit(registers.A, 7) == 0, 0, 1, -1);
@@ -1889,8 +1899,8 @@ void BIT(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void RES(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0x80: {
             set_bit(registers.B, 0, 0);
             break;
@@ -1910,7 +1920,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 0, 0);
             break;
         } case 0x86: {
-            set_bit(memory[HL.get()], 0, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 0, 0));
             break;
         } case 0x87: {
             set_bit(registers.A, 0, 0);
@@ -1934,7 +1944,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 1, 0);
             break;
         } case 0x8E: {
-            set_bit(memory[HL.get()], 1, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 1, 0));
             break;
         } case 0x8F: {
             set_bit(registers.A, 1, 0);
@@ -1958,7 +1968,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 2, 0);
             break;
         } case 0x96: {
-            set_bit(memory[HL.get()], 2, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 2, 0));
             break;
         } case 0x97: {
             set_bit(registers.A, 2, 0);
@@ -1982,7 +1992,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 3, 0);
             break;
         } case 0x9E: {
-            set_bit(memory[HL.get()], 3, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 3, 0));
             break;
         } case 0x9F: {
             set_bit(registers.A, 3, 0);
@@ -2006,7 +2016,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 4, 0);
             break;
         } case 0xA6: {
-            set_bit(memory[HL.get()], 4, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 4, 0));
             break;
         } case 0xA7: {
             set_bit(registers.A, 4, 0);
@@ -2030,7 +2040,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 5, 0);
             break;
         } case 0xAE: {
-            set_bit(memory[HL.get()], 5, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 5, 0));
             break;
         } case 0xAF: {
             set_bit(registers.A, 5, 0);
@@ -2054,7 +2064,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 6, 0);
             break;
         } case 0xB6: {
-            set_bit(memory[HL.get()], 6, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 6, 0));
             break;
         } case 0xB7: {
             set_bit(registers.A, 6, 0);
@@ -2078,7 +2088,7 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 7, 0);
             break;
         } case 0xBE: {
-            set_bit(memory[HL.get()], 7, 0);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 7, 0));
             break;
         } case 0xBF: {
             set_bit(registers.A, 7, 0);
@@ -2091,8 +2101,8 @@ void RES(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    switch (memory[registers.program_counter]) {
+void SET(memory_bus &bus, Flag_register &flag_register) {
+    switch (bus.get_memory(registers.program_counter)) {
         case 0xC0: {
             set_bit(registers.B, 0, 1);
             break;
@@ -2112,7 +2122,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 0, 1);
             break;
         } case 0xC6: {
-            set_bit(memory[HL.get()], 0, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 0, 1));
             break;
         } case 0xC7: {
             set_bit(registers.A, 0, 1);
@@ -2136,7 +2146,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 1, 1);
             break;
         } case 0xCE: {
-            set_bit(memory[HL.get()], 1, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 1, 1));
             break;
         } case 0xCF: {
             set_bit(registers.A, 1, 1);
@@ -2160,7 +2170,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 2, 1);
             break;
         } case 0xD6: {
-            set_bit(memory[HL.get()], 2, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 2, 1));
             break;
         } case 0xD7: {
             set_bit(registers.A, 2, 1);
@@ -2184,7 +2194,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 3, 1);
             break;
         } case 0xDE: {
-            set_bit(memory[HL.get()], 3, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 3, 1));
             break;
         } case 0xDF: {
             set_bit(registers.A, 3, 1);
@@ -2208,7 +2218,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 4, 1);
             break;
         } case 0xE6: {
-            set_bit(memory[HL.get()], 4, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 4, 1));
             break;
         } case 0xE7: {
             set_bit(registers.A, 4, 1);
@@ -2232,7 +2242,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 5, 1);
             break;
         } case 0xEE: {
-            set_bit(memory[HL.get()], 5, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 5, 1));
             break;
         } case 0xEF: {
             set_bit(registers.A, 5, 1);
@@ -2256,7 +2266,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 6, 1);
             break;
         } case 0xF6: {
-            set_bit(memory[HL.get()], 6, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 6, 1));
             break;
         } case 0xF7: {
             set_bit(registers.A, 6, 1);
@@ -2280,7 +2290,7 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
             set_bit(registers.L, 7, 1);
             break;
         } case 0xFE: {
-            set_bit(memory[HL.get()], 7, 1);
+            bus.set_memory(HL.get(), set_bit2(bus.get_memory(HL.get()), 7, 1));
             break;
         } case 0xFF: {
             set_bit(registers.A, 7, 1);
@@ -2293,334 +2303,336 @@ void SET(std::vector<uint8_t> &memory, Flag_register &flag_register) {
     return;
 }
 
-void cpu_cycle(std::vector<uint8_t> &memory, Flag_register &flag_register) {
-    op_code = memory[registers.program_counter];
-    std::cout << "A: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.A << " F: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)(flag_register.z << 7 | flag_register.n << 6 | flag_register.h << 5 | flag_register.c << 4) << " B: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.B << " C: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.C << " D: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.D << " E: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.E << " H: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.H << " L: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.L << " SP: " << std::setw(4) << (int)registers.stack_pointer << " PC: 00:" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex << registers.program_counter << " (" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)op_code << " " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)memory[registers.program_counter + 1] << " " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)memory[registers.program_counter + 2] << " " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)memory[registers.program_counter + 3] << ")"<< std::endl;
-    registers.program_counter++;
+void cpu_cycle(memory_bus &bus, Flag_register &flag_register) {
+    op_code = bus.fetch(registers.program_counter);
+    registers.program_counter -= 1;
+    // std::cout << "A: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.A << " F: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)(flag_register.z << 7 | flag_register.n << 6 | flag_register.h << 5 | flag_register.c << 4) << " B: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.B << " C: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.C << " D: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.D << " E: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.E << " H: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.H << " L: " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)registers.L << " SP: " << std::setw(4) << (int)registers.stack_pointer << " PC: 00:" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex << registers.program_counter << " (" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)op_code << " " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)bus.get_memory(registers.program_counter + 1) << " " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)bus.get_memory(registers.program_counter + 2) << " " << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << (int)bus.get_memory(registers.program_counter + 3) << ")"<< std::endl;
+    registers.program_counter += 1;
+
     switch (op_code & 0xF0) {
         case 0x00: {
             if (op_code == 0x00) {
-                NOP(memory, flag_register);
+                NOP(bus, flag_register);
             } else if (op_code == 0x01) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x02) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x03) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x04) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x05) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x06) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x07) {
-                RLCA(memory, flag_register);
+                RLCA(bus, flag_register);
             } else if (op_code == 0x08) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x09) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else if (op_code == 0x0A) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x0B) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x0C) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x0D) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x0E) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x0F) {
-                RRCA(memory, flag_register);
+                RRCA(bus, flag_register);
             }
             break;
         } case 0x10: {
             if (op_code == 0x10) {
                 // stop doesn't have to be implemented
             } else if (op_code == 0x11) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x12) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x13) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x14) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x15) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x16) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x17) {
-                RLA(memory, flag_register);
+                RLA(bus, flag_register);
             } else if (op_code == 0x18) {
-                JR(memory, flag_register);
+                JR(bus, flag_register);
             } else if (op_code == 0x19) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else if (op_code == 0x1A) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x1B) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x1C) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x1D) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x1E) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x1F) {
-                RRA(memory, flag_register);
+                RRA(bus, flag_register);
             }
             break;
         } case 0x20: {
             if (op_code == 0x20) {
-                JR(memory, flag_register);
+                JR(bus, flag_register);
             } else if (op_code == 0x21) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x22) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x23) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x24) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x25) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x26) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x27) {
-                DAA(memory, flag_register);
+                DAA(bus, flag_register);
             } else if (op_code == 0x28) {
-                JR(memory, flag_register);
+                JR(bus, flag_register);
             } else if (op_code == 0x29) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else if (op_code == 0x2A) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x2B) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x2C) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x2D) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x2E) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x2F) {
-                CPL(memory, flag_register);
+                CPL(bus, flag_register);
             }
             break;
         } case 0x30: {
             if (op_code == 0x30) {
-                JR(memory, flag_register);
+                JR(bus, flag_register);
             } else if (op_code == 0x31) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x32) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x33) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x34) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x35) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x36) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x37) {
-                SCF(memory, flag_register);
+                SCF(bus, flag_register);
             } else if (op_code == 0x38) {
-                JR(memory, flag_register);
+                JR(bus, flag_register);
             } else if (op_code == 0x39) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else if (op_code == 0x3A) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x3B) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x3C) {
-                INC(memory, flag_register);
+                INC(bus, flag_register);
             } else if (op_code == 0x3D) {
-                DEC(memory, flag_register);
+                DEC(bus, flag_register);
             } else if (op_code == 0x3E) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0x3F) {
-                CCF(memory, flag_register);
+                CCF(bus, flag_register);
             }
             break;
         } case 0x40: {
-            LOAD(memory, flag_register);
+            LOAD(bus, flag_register);
             break;
         } case 0x50: {
-            LOAD(memory, flag_register);
+            LOAD(bus, flag_register);
             break;
         } case 0x60: {
-            LOAD(memory, flag_register);
+            LOAD(bus, flag_register);
             break;
         } case 0x70: {
             if (op_code == 0x76) {
-                HALT(memory, flag_register);
+                HALT(bus, flag_register);
             } else {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             }
             break;
         } case 0x80: {
             if (op_code < 0x88) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else {
-                ADC(memory, flag_register);
+                ADC(bus, flag_register);
             }
             break;
         } case 0x90: {
             if (op_code < 0x98) {
-                SUB(memory, flag_register);
+                SUB(bus, flag_register);
             } else {
-                SBC(memory, flag_register);
+                SBC(bus, flag_register);
             }
             break;
         } case 0xA0: {
             if (op_code < 0xA8) {
-                AND(memory, flag_register);
+                AND(bus, flag_register);
             } else {
-                XOR(memory, flag_register);
+                XOR(bus, flag_register);
             }
             break;
         } case 0xB0: {
             if (0xB8 > op_code) {
-                OR(memory, flag_register);
+                OR(bus, flag_register);
             } else {
-                CP(memory, flag_register);
+                CP(bus, flag_register);
             }
             break;
         } case 0xC0: {
             if (op_code == 0xC0) {
-                RET(memory, flag_register);
+                RET(bus, flag_register);
             } else if (op_code == 0xC1) {
-                POP(memory, flag_register);
+                POP(bus, flag_register);
             } else if (op_code == 0xC2) {
-                JP(memory, flag_register);
+                JP(bus, flag_register);
             } else if (op_code == 0xC3) {
-                JP(memory, flag_register);
+                JP(bus, flag_register);
             } else if (op_code == 0xC4) {
-                CALL(memory, flag_register);
+                CALL(bus, flag_register);
             } else if (op_code == 0xC5) {
-                PUSH(memory, flag_register);
+                PUSH(bus, flag_register);
             } else if (op_code == 0xC6) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else if (op_code == 0xC7) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             } else if (op_code == 0xC8) {
-                RET(memory, flag_register);
+                RET(bus, flag_register);
             } else if (op_code == 0xC9) {
-                RET(memory, flag_register);
+                RET(bus, flag_register);
             } else if (op_code == 0xCA) {
-                JP(memory, flag_register);
+                JP(bus, flag_register);
             } else if (op_code == 0xCB) {
-                if (memory[registers.program_counter] < 0x08) {
-                    RLC(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x10) {
-                    RRC(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x18) {
-                    RL(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x20) {
-                    RR(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x28) {
-                    SLA(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x30) {
-                    SRA(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x38) {
-                    SWAP(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x40) {
-                    SRL(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0x80) {
-                    BIT(memory, flag_register);
-                } else if (memory[registers.program_counter] < 0xC0) {
-                    RES(memory, flag_register);
+                if (bus.get_memory(registers.program_counter) < 0x08) {
+                    RLC(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x10) {
+                    RRC(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x18) {
+                    RL(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x20) {
+                    RR(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x28) {
+                    SLA(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x30) {
+                    SRA(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x38) {
+                    SWAP(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x40) {
+                    SRL(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0x80) {
+                    BIT(bus, flag_register);
+                } else if (bus.get_memory(registers.program_counter) < 0xC0) {
+                    RES(bus, flag_register);
                 } else {
-                    SET(memory, flag_register);
+                    SET(bus, flag_register);
                 }
                 registers.program_counter += 1;
             } else if (op_code == 0xCC) {
-                CALL(memory, flag_register);
+                CALL(bus, flag_register);
             } else if (op_code == 0xCD) {
-                CALL(memory, flag_register);
+                CALL(bus, flag_register);
             } else if (op_code == 0xCE) {
-                ADC(memory, flag_register);
+                ADC(bus, flag_register);
             } else if (op_code == 0xCF) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             }
             break;
         } case 0xD0: {
             if (op_code == 0xD0) {
-                RET(memory, flag_register);
+                RET(bus, flag_register);
             } else if (op_code == 0xD1) {
-                POP(memory, flag_register);
+                POP(bus, flag_register);
             } else if (op_code == 0xD2) {
-                JP(memory, flag_register);
+                JP(bus, flag_register);
             } else if (op_code == 0xD4) {
-                CALL(memory, flag_register);
+                CALL(bus, flag_register);
             } else if (op_code == 0xD5) {
-                PUSH(memory, flag_register);
+                PUSH(bus, flag_register);
             } else if (op_code == 0xD6) {
-                SUB(memory, flag_register);
+                SUB(bus, flag_register);
             } else if (op_code == 0xD7) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             } else if (op_code == 0xD8) {
-                RET(memory, flag_register);
+                RET(bus, flag_register);
             } else if (op_code == 0xD9) {
-                RETI(memory, flag_register);
+                RETI(bus, flag_register);
             } else if (op_code == 0xDA) {
-                JP(memory, flag_register);
+                JP(bus, flag_register);
             } else if (op_code == 0xDC) {
-                CALL(memory, flag_register);
+                CALL(bus, flag_register);
             } else if (op_code == 0xDE) {
-                SBC(memory, flag_register);
+                SBC(bus, flag_register);
             } else if (op_code == 0xDF) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             }
             break;
         } case 0xE0: {
             if (op_code == 0xE0) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xE1) {
-                POP(memory, flag_register);
+                POP(bus, flag_register);
             } else if (op_code == 0xE2) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xE5) {
-                PUSH(memory, flag_register);
+                PUSH(bus, flag_register);
             } else if (op_code == 0xE6) {
-                AND(memory, flag_register);
+                AND(bus, flag_register);
             } else if (op_code == 0xE7) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             } else if (op_code == 0xE8) {
-                ADD(memory, flag_register);
+                ADD(bus, flag_register);
             } else if (op_code == 0xE9) {
-                JP(memory, flag_register);
+                JP(bus, flag_register);
             } else if (op_code == 0xEA) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xEE) {
-                XOR(memory, flag_register);
+                XOR(bus, flag_register);
             } else if (op_code == 0xEF) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             }
             break;
         } case 0xF0: {
             if (op_code == 0xF0) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xF1) {
-                POP(memory, flag_register);
+                POP(bus, flag_register);
             } else if (op_code == 0xF2) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xF3) {
-                DI(memory, flag_register);
+                DI(bus, flag_register);
             } else if (op_code == 0xF5) {
-                PUSH(memory, flag_register);
+                PUSH(bus, flag_register);
             } else if (op_code == 0xF6) {
-                OR(memory, flag_register);
+                OR(bus, flag_register);
             } else if (op_code == 0xF7) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             } else if (op_code == 0xF8) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xF9) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xFA) {
-                LOAD(memory, flag_register);
+                LOAD(bus, flag_register);
             } else if (op_code == 0xFB) {
-                EI(memory, flag_register);
+                EI(bus, flag_register);
             } else if (op_code == 0xFE) {
-                CP(memory, flag_register);
+                CP(bus, flag_register);
             } else if (op_code == 0xFF) {
-                RST(memory, flag_register);
+                RST(bus, flag_register);
             }
             break;
         }

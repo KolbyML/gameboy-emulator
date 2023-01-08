@@ -44,12 +44,12 @@ bool is_borrow_from_bit4(uint8_t x, uint8_t y, uint8_t z) {
 }
 
 bool get_bit(uint8_t byte, uint8_t index) {
-    assert(0 <= index <= 7);
+    assert(0 <= index && index <= 7);
     return (byte & 1 << index) >> index;
 }
 
-void set_bit(uint8_t& byte, uint8_t index, bool set) {
-    assert(0 <= index <= 7);
+void set_bit(uint8_t& byte, const uint8_t index, const bool set) {
+    assert(0 <= index && index <= 7);
     if (set) {
         byte = byte | (1 << index);
     } else {
@@ -57,8 +57,17 @@ void set_bit(uint8_t& byte, uint8_t index, bool set) {
     }
 }
 
+uint8_t set_bit2(const uint8_t& byte, const uint8_t index, const bool set) {
+    assert(0 <= index && index <= 7);
+    if (set) {
+        return byte | (1 << index);
+    } else {
+        return byte & ~(1 << index);
+    }
+}
+
 void rotate_left(uint8_t& byte) {
-    byte = (byte << 1) | (bool)(byte >> 7);
+    byte = (byte << 1) | (uint8_t)(bool)(byte >> 7);
 }
 
 void rotate_right(uint8_t& byte) {
