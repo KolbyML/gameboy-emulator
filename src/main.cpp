@@ -5,10 +5,10 @@
 #include <cstdio>
 #include <fstream>
 #include <functional>
-#include "utils.h"
 #include "main.h"
 #include "memory_bus.h"
 #include "cpu.h"
+#include "utils.h"
 
 bool DEBUG = false;
 
@@ -107,6 +107,8 @@ int main(int argc, char* argv[]) {
             printf("%c", c);
             bus.set_memory(0xff02, 0x0);
         }
+
+        bus.incement_timer(bus.get_cycles());
     }
     finish:
     SDL_DestroyRenderer(renderer);

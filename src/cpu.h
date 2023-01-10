@@ -5,6 +5,8 @@
 #ifndef GAMEBOY_EMULATOR_CPU_H
 #define GAMEBOY_EMULATOR_CPU_H
 
+#include "memory_bus.h"
+
 class Virtual_Register {
     uint8_t *x;
     uint8_t *y;
