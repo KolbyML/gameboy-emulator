@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
         registers.stack_pointer = 0xFFFE;
     }
 
-    for (int i = 0; i < 300000; i++) {
+    while (true) {
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
             break;
 
@@ -98,7 +98,22 @@ int main(int argc, char* argv[]) {
             }
         }
         bus.inc_count();
-        cpu_cycle(bus, flag_register);
+        uint8_t IE = bus.get_memory(0xFFFF);
+        uint8_t IF = bus.get_memory(0xFF0F);
+        uint8_t op_code = bus.get_memory(registers.program_counter);
+
+
+
+        if (op_code != 0x76) {
+            cpu_cycle(bus, flag_register);
+            bus.incement_timer(bus.get_cycles());
+        } else {
+            if ((IE & IF) != 0) {
+                registers.program_counter++;
+            }
+
+            bus.incement_timer(4);
+        }
 
         //    blarggs test - serial output
 
@@ -107,8 +122,6 @@ int main(int argc, char* argv[]) {
             printf("%c", c);
             bus.set_memory(0xff02, 0x0);
         }
-
-        bus.incement_timer(bus.get_cycles());
     }
     finish:
     SDL_DestroyRenderer(renderer);

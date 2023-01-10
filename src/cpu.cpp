@@ -548,15 +548,6 @@ void NOP(memory_bus &bus, Flag_register &flag_register) {
     return;
 }
 
-void HALT(memory_bus &bus, Flag_register &flag_register) {
-    if (bus.get_ime()) {
-
-    } else {
-
-    }
-    return;
-}
-
 void SUB(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {
         case 0x90: {
@@ -2460,11 +2451,7 @@ void cpu_cycle(memory_bus &bus, Flag_register &flag_register) {
             LOAD(bus, flag_register);
             break;
         } case 0x70: {
-            if (op_code == 0x76) {
-                HALT(bus, flag_register);
-            } else {
-                LOAD(bus, flag_register);
-            }
+            LOAD(bus, flag_register);
             break;
         } case 0x80: {
             if (op_code < 0x88) {
