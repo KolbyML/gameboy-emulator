@@ -106,13 +106,13 @@ int main(int argc, char* argv[]) {
 
         if (op_code != 0x76) {
             cpu_cycle(bus, flag_register);
-            bus.incement_timer(bus.get_cycles());
+            bus.increment_timer(bus.get_cycles());
         } else {
             if ((IE & IF) != 0) {
                 registers.program_counter++;
             }
 
-            bus.incement_timer(4);
+            bus.increment_timer(4);
         }
 
         //    blarggs test - serial output

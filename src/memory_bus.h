@@ -45,7 +45,7 @@ public:
 
     void inc_count() { count++; };
 
-    void incement_timer(int cycles);
+    void increment_timer(int cycles);
 
     int get_cycles();
 };

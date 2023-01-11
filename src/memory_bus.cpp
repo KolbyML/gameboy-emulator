@@ -55,7 +55,7 @@ void memory_bus::set_memory(const uint16_t &pointer, const uint8_t &value) {
     }
 }
 
-void memory_bus::incement_timer(int cycles) {
+void memory_bus::increment_timer(int cycles) {
     uint8_t DIV = get_memory(0xFF04);
     uint8_t TIMA = get_memory(0xFF05);
     uint8_t TMA = get_memory(0xFF06);
