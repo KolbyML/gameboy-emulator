@@ -5,6 +5,8 @@
 #ifndef GAMEBOY_EMULATOR_MEMORY_BUS_H
 #define GAMEBOY_EMULATOR_MEMORY_BUS_H
 
+#include <vector>
+
 class memory_bus {
 private:
     std::vector<uint8_t> memory;

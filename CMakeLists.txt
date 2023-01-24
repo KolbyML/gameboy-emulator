@@ -15,7 +15,8 @@ set(SOURCES
         src/main.cpp
         src/utils.cpp
         src/cpu.cpp
-        src/memory_bus.cpp)
+        src/memory_bus.cpp
+        src/ppu.cpp)
 
 add_executable(gameboy-emulator ${SOURCES})
 target_link_libraries(gameboy-emulator PRIVATE "${SDL2_LIBRARY}")
