@@ -9,20 +9,6 @@
 #include "cpu.h"
 #include "utils.h"
 
-uint8_t op_code = 0;
-
-Registers registers = {};
-Virtual_Register AF = Virtual_Register(registers.A, registers.F);
-Virtual_Register BC = Virtual_Register(registers.B, registers.C);
-Virtual_Register DE = Virtual_Register(registers.D, registers.E);
-Virtual_Register HL = Virtual_Register(registers.H, registers.L);
-
-void set_flags(Flag_register &flag_register, std::int8_t Z, std::int8_t N, std::int8_t H, std::int8_t C) {
-    if (Z != -1) flag_register.z = Z;
-    if (N != -1) flag_register.n = N;
-    if (H != -1) flag_register.h = H;
-    if (C != -1) flag_register.c = C;
-}
 
 void INC(memory_bus &bus, Flag_register &flag_register) {
     switch (op_code) {

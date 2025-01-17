@@ -50,15 +50,6 @@ extern Virtual_Register BC;
 extern Virtual_Register DE;
 extern Virtual_Register HL;
 
-struct Flag_register {
-    uint8_t z;
-    // This bit is set if and only if the result of an operation is zero. Used by conditional jumps.
-    uint8_t n;
-    uint8_t h;
-    // https://gbdev.io/pandocs/CPU_Registers_and_Flags.html#the-bcd-flags-n-h
-    uint8_t c;
-    // https://gbdev.io/pandocs/CPU_Registers_and_Flags.html#the-carry-flag-c-or-cy
-};
 
 void cpu_cycle(memory_bus &bus, Flag_register &flag_register);
 void set_flags(Flag_register &flag_register, std::int8_t Z, std::int8_t N, std::int8_t H, std::int8_t C);

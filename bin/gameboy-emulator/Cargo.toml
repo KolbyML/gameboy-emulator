@@ -1,0 +1,20 @@
+[package]
+name = "gameboy-emulator"
+description = "A Rust implementation of the Ethereum Beam Chain specification."
+authors.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "gameboy-emulator"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true, features = ["derive", "env"] }
+pixels.workspace = true
+tracing = { workspace = true, features = ["log"] }
