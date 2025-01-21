@@ -1,6 +1,6 @@
 use pixels::wgpu::core::registry;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Register {
     A,
     F,
@@ -65,6 +65,7 @@ impl Registers {
             Register::BC => ((self.b as u16) << 8) | self.c as u16,
             Register::DE => ((self.d as u16) << 8) | self.e as u16,
             Register::HL => ((self.h as u16) << 8) | self.l as u16,
+            Register::SP => self.stack_pointer,
             _ => panic!("Invalid virtual register"),
         }
     }
@@ -87,6 +88,7 @@ impl Registers {
                 self.h = (value >> 8) as u8;
                 self.l = value as u8;
             }
+            Register::SP => self.stack_pointer = value,
             _ => panic!("Invalid virtual register"),
         }
     }
@@ -96,6 +98,16 @@ impl Registers {
         let x = self.get_virtual_register(register_x);
         let y = self.get_virtual_register(register_y);
         self.set_virtual_register(register_x, x.wrapping_add(y));
+    }
+
+    pub fn add_register(&mut self, register_x: Register, register_y: Register, z: Option<u8>) {
+        let x = self.get_register(register_x);
+        let y = self.get_register(register_y);
+        let z = match z {
+            Some(z) => z,
+            None => 0,
+        };
+        self.set_register(register_x, x.wrapping_add(y).wrapping_add(z));
     }
 
     pub fn get_register(&self, register: Register) -> u8 {
@@ -108,7 +120,7 @@ impl Registers {
             Register::E => self.e,
             Register::H => self.h,
             Register::L => self.l,
-            _ => panic!("Invalid register"),
+            _ => panic!("Invalid register {register:?}"),
         }
     }
 
@@ -161,7 +173,7 @@ impl Registers {
         (value >> bit) & 1
     }
 
-    pub fn set_bit(&mut self, register: Register, bit: u8, value: u8) {
+    pub fn set_bit(&mut self, register: Register, bit: u8, value: bool) {
         let reg_value = match register {
             Register::A => &mut self.a,
             Register::F => &mut self.f,
@@ -173,23 +185,11 @@ impl Registers {
             Register::L => &mut self.l,
             _ => panic!("Invalid register"),
         };
-        if value > 0 {
+        if value {
             *reg_value |= 1 << bit;
         } else {
             *reg_value &= !(1 << bit);
         }
-    }
-
-    pub fn rotate_left(&mut self, register: Register) {
-        let value = self.get_register(register);
-        let new_value = (value << 1) | ((value >> 7) & 1);
-        self.set_register(register, new_value);
-    }
-
-    pub fn rotate_right(&mut self, register: Register) {
-        let value = self.get_register(register);
-        let new_value = (value >> 1) | ((value & 1) << 7);
-        self.set_register(register, new_value);
     }
 
     pub fn is_half_carry_u16(&self, register_x: Register, register_y: Register) -> bool {
@@ -202,6 +202,24 @@ impl Registers {
         let x = self.get_virtual_register(register_x);
         let y = self.get_virtual_register(register_y);
         (((x as u32) + (y as u32)) & 0x10000) == 0b10000000000000000
+    }
+
+    pub fn is_carry_u8(&self, register_x: Register, y: u8, z: Option<u8>) -> bool {
+        let x = self.get_register(register_x);
+        let z = match z {
+            Some(z) => z,
+            None => 0,
+        };
+        (((x as u16) + (y as u16) + (z as u16)) & 0x100) == 0b100000000
+    }
+
+    pub fn is_added_zero(&self, register_x: Register, y: u8, z: Option<u8>) -> bool {
+        let x = self.get_register(register_x);
+        let z = match z {
+            Some(z) => z as u16,
+            None => 0,
+        };
+        ((x as u16) + (y as u16) + z) as u8 == 0
     }
 
     pub fn inc_pc(&mut self) {
@@ -244,10 +262,10 @@ pub struct FlagRegisters {
 impl FlagRegisters {
     pub fn new() -> Self {
         FlagRegisters {
-            z: 0,
+            z: 1,
             n: 0,
-            h: 0,
-            c: 0,
+            h: 1,
+            c: 1,
         }
     }
 

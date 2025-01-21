@@ -21,6 +21,7 @@ anyhow = "1.0.95"
 clap = "4"
 pixels = "0.15.0"
 tracing = "0.1.27"
+tracing-subscriber = "0.3"
 
 # gameboy-emulator dependencies
 gameboy-emulator = { path = "bin/gameboy-emulator"}
